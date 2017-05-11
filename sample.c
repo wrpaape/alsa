@@ -26,7 +26,8 @@ exit_on_failure(const char *const restrict reason,
 
       
 int
-main (int argc, char *argv[])
+main (int argc,
+      char *argv[])
 {
 	FILE *output;
 	int i;

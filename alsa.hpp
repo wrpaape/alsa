@@ -5,160 +5,245 @@
 // =============================================================================
 #define ALSA_PCM_NEW_HW_PARAMS_API // use the newer ALSA API
 #include <alsa/asoundlib.h>        // ALSA API
+#include <stdint.h>                // int16_t
 #include <stdexcept>               // std::runtime_error
 #include <string>                  // std::string
+#include <array>                   // std::array
+#include <vector>                  // std::vector
+
+
+
 
 namespace alsa {
-
-class MicrophoneFailure : public std::runtime_error {
-public:
-    explicit MicrophoneFailure(const std::string &what_arg)
-        : std::runtime_error(what_arg)
-    {}
-
-    explicit MicrophoneFailure(const char *what_arg)
-        : std::runtime_error(what_arg)
-    {}
-
-    MicrophoneFailure(const std::string &prefix,
-                      const int error_code)
-        : std::runtime_error(prefix + ": " + snd_strerror(error_code))
-    {}
-}; // class MicrophoneFailure
+// GLOBAL TYPEDEFS
+// =============================================================================
+typedef snd_pcm_uframes_t   frame_size_type;
 
 
 
 
-class Microphone
+// PRIVATE IMPLEMENTATION
+// =============================================================================
+namespace detail {
+// typedefs
+// -----------------------------------------------------------------------------
+typedef snd_pcm_t           device_type;
+typedef snd_pcm_stream_t    stream_type;
+typedef snd_pcm_format_t    format_type;
+typedef snd_pcm_access_t    access_type;
+typedef snd_pcm_sframes_t   signed_frame_size_type;
+typedef snd_pcm_hw_params_t hw_params_type;
+
+
+
+// helper functions
+// -----------------------------------------------------------------------------
+// throw runtime error if action failed
+inline void
+check_status(const int status,
+             const char *action)
+{
+    if (status < 0) {
+        std::string what_arg("failed to ");
+        what_arg += action;
+        what_arg += ": ";
+        what_arg += snd_strerror(status);
+        throw std::runtime_error(what_arg);
+    }
+}
+
+
+
+// base classes
+// -----------------------------------------------------------------------------
+class Device
 {
 public:
-    Microphone()
+    Device(const char *name,
+           const stream_type stream,
+           const int open_mode)
     {
-
-        snd_pcm_hw_params_t hw_params;
-
-        open_handle();
-
-        init_hw_params(hw_params);
-        set_access_type(hw_params);
-        set_sample_format(hw_params);
-        set_channel_count(hw_params);
-        set_sample_rate(hw_params);
-        set_period_size(hw_params);
-
-    }
-
-    ~Microphone()
-    {
-        /* free_hw_params(); */
-        close_handle();
-    }
-
-
-
-private:
-    class MicrophoneSettings
-    {
-        MicrophoneSettings()
-        {
-        }
-
-
-    } // class MicrophoneSettings
-
-    // PCM Settings
-    // -------------------------------------------------------------------------
-    static const char *name                     = "default";
-    static const snd_pcm_stream_t stream        = SND_PCM_STREAM_CAPTURE;
-    static const int open_mode                  = 0; // blocking
-    static const snd_pcm_access_t access_type   = SND_PCM_ACCESS_RW_INTERLEAVED;
-    static const snd_pcm_format_t sample_format = SND_PCM_FORMAT_S16_LE;
-    static const unsigned int count_channels    = 2; // stereo
-    static const unsigned int sample_rate       = 16000; // bits/second
-    static const snd_pcm_uframes_t period_size  = 32;
-
-    // instance data
-    // -------------------------------------------------------------------------
-    snd_pcm_t *device;
-
-    // instance methods
-    // -------------------------------------------------------------------------
-    void open_handle()
-    {
-        const int status = snd_pcm_open(&device,
+        const int status = snd_pcm_open(&handle,
                                         name,
                                         stream,
                                         open_mode);
-        if (status < 0)
-            throw MicrophoneFailure("cannot open audio device", status);
+        check_status(status,
+                     "open audio device");
     }
 
-    void init_hw_params(snd_pcm_hw_params_t &hw_params)
+    ~Device()
     {
-        const int status = snd_pcm_hw_params_any(device,
+        (void) snd_pcm_close(handle);
+    }
+
+
+protected:
+    operator device_type *() const
+    {
+        return handle;
+    }
+
+
+private:
+    device_type *handle;
+}; // class Device
+
+
+
+class DeviceSettings
+{
+public:
+    DeviceSettings(const Device &device)
+        : device_handle(device)
+    {
+        const int status = snd_pcm_hw_params_any(device_handle,
                                                  &hw_params);
-        if (status < 0)
-            throw MicrophoneFailure("cannot initialize hardware parameter "
-                                    "structure", status);
+        detail::check_status(status,
+                             "initialize hardware parameter structure");
     }
 
-    void set_access_type(snd_pcm_hw_params_t &hw_params)
+    void
+    set_access(const access_type access)
     {
-        const int status = snd_pcm_hw_params_set_access(device,
+        const int status = snd_pcm_hw_params_set_access(device_handle,
                                                         &hw_params,
-                                                        access_type);
-        if (status < 0)
-            throw MicrophoneFailure("cannot set access type", status);
+                                                        access);
+        detail::check_status(status,
+                             "set access");
     }
 
-    void set_sample_format(snd_pcm_hw_params_t &hw_params)
+    void
+    set_sample_format(const format_type sample_format)
     {
-        const int status = snd_pcm_hw_params_set_format(device,
+        const int status = snd_pcm_hw_params_set_format(device_handle,
                                                         &hw_params,
                                                         sample_format);
-        if (status < 0)
-            throw MicrophoneFailure("cannot set sample format", status);
+        detail::check_status(status,
+                             "set sample format");
     }
 
-    void set_channel_count(snd_pcm_hw_params_t &hw_params)
+    void
+    set_channel_count(const unsigned int count_channels)
     {
-        const int status = snd_pcm_hw_params_set_channels(device,
+        const int status = snd_pcm_hw_params_set_channels(device_handle,
                                                           &hw_params,
                                                           count_channels);
-        if (status < 0)
-            throw MicrophoneFailure("cannot set channel count", status);
+        detail::check_status(status,
+                             "set channel count");
     }
 
-
-    void set_sample_rate(snd_pcm_hw_params_t &hw_params)
+    void
+    set_sample_rate(const unsigned int sample_rate)
     {
-        const int status = snd_pcm_hw_params_set_rate(device,
+        const int status = snd_pcm_hw_params_set_rate(device_handle,
                                                       &hw_params,
                                                       sample_rate,
                                                       0);
-        if (status < 0)
-            throw MicrophoneFailure("cannot set sample rate", status);
+        detail::check_status(status,
+                             "set sample rate");
     }
 
-    void set_period_size(snd_pcm_hw_params_t &hw_params)
+    void
+    set_period_size(const frame_size_type period_size)
     {
-        const int status = snd_pcm_hw_params_set_period_size(device,
+        const int status = snd_pcm_hw_params_set_period_size(device_handle,
                                                              &hw_params,
                                                              period_size,
-                                                      0);
-        if (status < 0)
-            throw MicrophoneFailure("cannot set sample rate", status);
+                                                             0);
+        detail::check_status(status,
+                             "set period size");
     }
 
-
-    void close_handle()
+    void
+    finalize()
     {
-        (void) snd_pcm_close(device);
+        const int status = snd_pcm_hw_params(device_handle,
+                                             &hw_params);
+        detail::check_status(status,
+                             "finalize device settings");
     }
 
 
+private:
+    device_type    *device_handle;
+    hw_params_type  hw_params;
+}; // class DeviceSettings
+
+} // namespace detail
 
 
+
+
+// EXTERNAL API
+// =============================================================================
+class Microphone : private detail::Device
+{
+public:
+    typedef int16_t frame_type;
+
+    Microphone()
+        : detail::Device("default",              // device name
+                         SND_PCM_STREAM_CAPTURE, // capture stream
+                         0)                      // blocking mode
+    {
+        detail::DeviceSettings settings(*this);
+
+        // grant access to interleaved channel read (and write)
+        settings.set_access(SND_PCM_ACCESS_RW_INTERLEAVED);
+
+        // signed, 16-bit, little-endian
+        settings.set_sample_format(SND_PCM_FORMAT_S16_LE);
+
+        // two channels (stereo)
+        settings.set_channel_count(2);
+
+        // sample at 16000 bits/second
+        settings.set_sample_rate(16000);
+
+        // set period size to 32 frames
+        settings.set_period_size(32);
+
+        settings.finalize();
+    }
+
+    frame_size_type
+    read(frame_type *buffer,
+         frame_size_type frame_count)
+    {
+        detail::signed_frame_size_type frames_read;
+
+        frames_read = snd_pcm_readi(*this,
+                                    buffer,
+                                    frame_count);
+
+        // blocking, no need to check for EAGAIN
+        detail::check_status(static_cast<int>(frames_read),
+                             "read from microphone");
+
+        return static_cast<frame_size_type>(frames_read);
+    }
+
+    template<frame_size_type capacity>
+    frame_size_type
+    read(frame_type buffer[capacity])
+    {
+        return read(&buffer[0],
+                    capacity);
+    }
+
+    frame_size_type
+    read(std::array<frame_type> &buffer)
+    {
+        return read(buffer.data(),
+                    static_cast<frame_size_type>(buffer.max_size()));
+    }
+
+    frame_size_type
+    read(std::vector<frame_type> &buffer)
+    {
+        return read(buffer.data(),
+                    static_cast<frame_size_type>(buffer.capacity()));
+    }
 }; // class Microphone
 
 } // namespace alsa

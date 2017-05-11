@@ -1,7 +1,10 @@
 CC	= gcc
+CXX	= g++
 LDFLAGS = -lasound
 
-all: sample latency list record
+TARGETS = sample latency list record demo
+
+all: $(TARGETS)
 
 list: list.c
 	$(CC) $^ $(LDFLAGS) -o $@
@@ -15,4 +18,8 @@ sample: sample.c
 latency: latency.c
 	$(CC) $^ $(LDFLAGS) -lm -o $@
 
+demo: demo.cpp
+	$(CXX) $^ $(LDFLAGS) -o $@
 
+clean:
+	rm -f $(TARGETS)
