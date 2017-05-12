@@ -1,6 +1,5 @@
 #ifndef ALSAPP_MICROPHONE_HPP
 #define ALSAPP_MICROPHONE_HPP
-
 // EXTERNAL DEPENDENCIES
 // =============================================================================
 #include "alsapp/detail/alsa_interface.h"    // snd_pcm_*, SND_PCM_*
@@ -21,6 +20,12 @@ class Microphone : private detail::Device
 private:
     // Microphone Settings
     // -------------------------------------------------------------------------
+    // request a capture stream
+    static const snd_pcm_stream_t stream_mode = SND_PCM_STREAM_CAPTURE;
+
+    // open stream in synchronous, blocking mode
+    static const int open_mode = 0;
+    
     // grant access to interleaved channel read (and write)
     static const snd_pcm_access_t access_mode = SND_PCM_ACCESS_RW_INTERLEAVED;
 
@@ -29,26 +34,35 @@ private:
     typedef std::int16_t sample_type;
 
     // two channels (stereo), two samples per frame
-    static const unsigned int channel_count = 2;
+    /* static const unsigned int channel_count = 2; */
+    static const unsigned int channel_count = 1;
     typedef sample_type frame_type[channel_count];
 
     // sample at 16000 bits/second
     static const unsigned int sample_rate = 16000;
 
     // 32 frames per period
-    static const snd_pcm_uframes_t period_frame_size = 32;
+    /* static const snd_pcm_uframes_t period_frame_size = 32; */
+    static const snd_pcm_uframes_t period_frame_size = 128;
 
-    // sizeof(period)
+    // sizeof(period_type)
     static const std::size_t period_size = sizeof(frame_type)
                                          * period_frame_size;
+
 
 public:
     typedef char period_type[period_size]; // audio units
 
-    Microphone()
-        : detail::Device("default",              // device name
-                         SND_PCM_STREAM_CAPTURE, // capture stream
-                         0)                      // blocking mode
+    /* template<std::size_t size> */
+    /* class Buffer { */
+
+    /* }; // class Period */
+
+
+    Microphone(const char *const device_name = "default")
+        : detail::Device(device_name,
+                         stream_mode,
+                         open_mode) // open device
     {
         detail::DeviceSettings settings(*this);
 
@@ -60,6 +74,7 @@ public:
         settings.set_period_frame_size(period_frame_size);
         settings.finalize();
     }
+
 
     // read into a period buffer
     std::size_t

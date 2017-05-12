@@ -5,7 +5,7 @@ CXXFLAGS = $(CCFLAGS) -I. -std=c++1z -g
 LDFLAGS  = -lasound
 
 PLAYER         = aplay
-PLAYER_FLAGS   = --format=S16_LE --file-type=raw --channels=2 --rate=16000HZ
+PLAYER_FLAGS   = --format=S16_LE --file-type=raw --channels=1 --rate=16000HZ
 OUTPUT_FILE    = output.raw
 PLAY           = $(PLAYER) $(PLAYER_FLAGS) $(OUTPUT_FILE) 
 RECORD_SECONDS = 3

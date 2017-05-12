@@ -16,16 +16,15 @@ namespace detail {
 class Device
 {
 public:
-    Device(const char *name,
-           const snd_pcm_stream_t stream,
+    Device(const char *const name,
+           const snd_pcm_stream_t stream_mode,
            const int open_mode)
     {
-        const int status = snd_pcm_open(&handle,
-                                        name,
-                                        stream,
-                                        open_mode);
         check_action("open audio device",
-                     status);
+                     snd_pcm_open(&handle,
+                                  name,
+                                  stream_mode,
+                                  open_mode));
     }
 
     ~Device()
