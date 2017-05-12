@@ -33,16 +33,14 @@ private:
     static const snd_pcm_format_t sample_format = SND_PCM_FORMAT_S16_LE;
     typedef std::int16_t sample_type;
 
-    // two channels (stereo), two samples per frame
-    /* static const unsigned int channel_count = 2; */
+    // one channel (mono), one sample per frame
     static const unsigned int channel_count = 1;
     typedef sample_type frame_type[channel_count];
 
     // sample at 16000 bits/second
     static const unsigned int sample_rate = 16000;
 
-    // 32 frames per period
-    /* static const snd_pcm_uframes_t period_frame_size = 32; */
+    // 128 frames per period
     static const snd_pcm_uframes_t period_frame_size = 128;
 
     // sizeof(period_type)
@@ -52,12 +50,6 @@ private:
 
 public:
     typedef char period_type[period_size]; // audio units
-
-    /* template<std::size_t size> */
-    /* class Buffer { */
-
-    /* }; // class Period */
-
 
     Microphone(const char *const device_name = "default")
         : detail::Device(device_name,
@@ -74,7 +66,6 @@ public:
         settings.set_period_frame_size(period_frame_size);
         settings.finalize();
     }
-
 
     // read into a period buffer
     std::size_t
@@ -109,31 +100,19 @@ public:
         return read(&buffer[0], capacity);
     }
 
-    // number of periods required to record 'seconds' seconds of sound
+    // number of periods required to record specified time of sound
     static constexpr std::size_t
-    size_buffer(const std::size_t seconds)
+    size_buffer_msec(const std::size_t milliseconds)
     {
-        return ((seconds * sample_rate) / period_frame_size)
-             + (((seconds * sample_rate) % period_frame_size) > 0);
+        return ((milliseconds * sample_rate) / (period_frame_size * 1000))
+             + (((milliseconds * sample_rate) % (period_frame_size * 1000)) > 0);
     }
 
-
-    /* // read into a std::array of periods */
-    /* template<std::size_t capacity> */
-    /* std::size_t */
-    /* read(std::array<period_type, capacity> &buffer) */
-    /* { */
-    /*     return read(buffer.data(), */
-    /*                 capacity); */
-    /* } */
-
-    /* // read into a std::vector of periods */
-    /* std::size_t */
-    /* read(std::vector<period_type> &buffer) */
-    /* { */
-    /*     return read(buffer.data(), */
-    /*                 static_cast<frame_size_type>(buffer.capacity())); */
-    /* } */
+    static constexpr std::size_t
+    size_buffer_sec(const std::size_t seconds)
+    {
+        return size_buffer_sec(seconds * 1000);
+    }
 }; // class Microphone
 
 } // namespace alsapp
