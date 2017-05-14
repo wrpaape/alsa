@@ -37,7 +37,7 @@ private:
     static const unsigned int channel_count = 1;
     typedef sample_type frame_type[channel_count];
 
-    // sample at 16000 bits/second
+    // sample at 16000 HZ
     static const unsigned int sample_rate = 16000;
 
     // 128 frames per period
