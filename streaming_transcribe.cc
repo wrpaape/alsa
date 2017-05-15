@@ -43,6 +43,9 @@ microphone_main(
 {
     StreamingRecognizeRequest request;
     Microphone::period_type buffer[Microphone::size_buffer_msec(500)];
+
+    std::cout << "sizeof(buffer): " << sizeof(buffer) << std::endl;
+
     std::size_t size_read;
 
     Microphone microphone;

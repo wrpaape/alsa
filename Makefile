@@ -11,35 +11,42 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-GOOGLEAPIS_GENS_PATH ?= $(HOME)/gitrepos/googleapis/gens
-GOOGLEAPIS_API_CCS = $(shell find $(GOOGLEAPIS_GENS_PATH)/google/api \
-	-name '*.pb.cc')
-GOOGLEAPIS_RPC_CCS = $(shell find $(GOOGLEAPIS_GENS_PATH)/google/rpc \
-	-name '*.pb.cc')
-GOOGLEAPIS_SPEECH_CCS = $(shell find \
-	$(GOOGLEAPIS_GENS_PATH)/google/cloud/speech -name '*.pb.cc')
-GOOGLEAPIS_LONGRUNNING_CCS = $(shell find \
-	$(GOOGLEAPIS_GENS_PATH)/google/longrunning -name '*.pb.cc')
-GOOGLEAPIS_CCS = $(GOOGLEAPIS_API_CCS) $(GOOGLEAPIS_RPC_CCS) \
-	$(GOOGLEAPIS_LONGRUNNING_CCS) $(GOOGLEAPIS_SPEECH_CCS)
 
-HOST_SYSTEM = $(shell uname | cut -f 1 -d_)
-SYSTEM ?= $(HOST_SYSTEM)
+
+
+# check required environment variables
+ifeq (,$(GOOGLE_APPLICATION_CREDENTIALS))
+$(error "environment variable 'GOOGLE_APPLICATION_CREDENTIALS' must be set to \
+	 your Google Cloud service account credentials \
+	 (see SpeechApi.README.md)")
+endif # ifeq (,$(GOOGLE_APPLICATION_CREDENTIALS))
+
+ifeq (,$(GOOGLEAPIS_GENS_PATH))
+$(error "environment variable 'GOOGLEAPIS_GENS_PATH' must be set to \
+	 your gRPC 'gens' directory (see [SpeechApi|Grpc].README.md)")
+endif # ifeq (,$(GOOGLEAPIS_GENS_PATH))
+
+# google protocol buffer sources
+GOOGLEAPIS_CCS = $(shell find $(GOOGLEAPIS_GENS_PATH)/google/api	  \
+		 	      $(GOOGLEAPIS_GENS_PATH)/google/rpc	  \
+		  	      $(GOOGLEAPIS_GENS_PATH)/google/cloud/speech \
+		  	      $(GOOGLEAPIS_GENS_PATH)/google/longrunning  \
+			      -name '*.pb.cc')
+
+SYSTEM ?= $(shell uname | cut -f 1 -d_) # use host system if not set
+
 CXX = g++
-CPPFLAGS += -I/usr/local/include -pthread -I$(GOOGLEAPIS_GENS_PATH)
+CPPFLAGS += -I/usr/local/include -pthread -I$(GOOGLEAPIS_GENS_PATH) -I.
 CXXFLAGS += -std=c++11
-ifeq ($(SYSTEM),Darwin)
-LDFLAGS += -L/usr/local/lib `pkg-config --libs grpc++ grpc`       \
-           -lgrpc++_reflection                                    \
-           -lprotobuf -lpthread -ldl
-else
-LDFLAGS += -L/usr/local/lib `pkg-config --libs grpc++ grpc`       \
-           -Wl,--no-as-needed -lgrpc++_reflection -Wl,--as-needed \
-           -lprotobuf -lpthread -ldl
-endif
 
-CPPFLAGS += -I.
-LDFLAGS  += -lasound
+LDFLAGS += -L/usr/local/lib `pkg-config --libs grpc++ grpc`
+ifeq ($(SYSTEM),Darwin)
+LDFLAGS += -lgrpc++_reflection
+else
+LDFLAGS += -Wl,--no-as-needed -lgrpc++_reflection -Wl,--as-needed
+endif # ifeq ($(SYSTEM),Darwin)
+LDFLAGS += -lprotobuf -lpthread -ldl -lasound
+
 
 .PHONY: all
 all: streaming_transcribe
@@ -48,7 +55,7 @@ googleapis.ar: $(GOOGLEAPIS_CCS:.cc=.o)
 	ar r $@ $?
 
 streaming_transcribe: streaming_transcribe.o googleapis.ar
-	$(CXX) $^ $(LDFLAGS) -lasound -o $@
+	$(CXX) $^ $(LDFLAGS) -o $@
 
 run_tests: all
 	./streaming_transcribe
